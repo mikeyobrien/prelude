@@ -83,6 +83,14 @@
   ;; Clear any corrupted undo history
   (setq-default buffer-undo-list nil))
 
+;; Evil Collection for better evil integration with Emacs modes
+(use-package evil-collection
+  :ensure t
+  :after evil
+  :config
+  (setq evil-collection-mode-list '(help dired magit))  ; Start with a few modes
+  (evil-collection-init))
+
 ;; Auto-revert files when they change on disk
 (global-auto-revert-mode 1)
 ;; Also auto-revert dired buffers
@@ -96,5 +104,4 @@
   (setq claude-code-ide-window-side 'bottom
         claude-code-ide-window-height 30)) ; Optionally enable Emacs MCP tools
 
-;; Load minimal additions not in Prelude
-(require 'minimal-additions)
+;; Test
