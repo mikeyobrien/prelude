@@ -31,18 +31,85 @@
 (setq use-package-always-ensure t)
 
 
-(defvar my-font-name "Fira Code Nerd Font" "Retina")
-(defvar my-font-size 10 "Font size to use in points (for example, 10).")
-(defvar my-font (format "%s-%f" my-font-name my-font-size))
+;; Font configuration with Retina variant and fallback
+(defvar my-font-variants
+  '("FiraCode Nerd Font Ret"  ; Retina variant (preferred)
+    "FiraCode Nerd Font"       ; Regular variant (fallback)
+    "Fira Code Nerd Font")     ; Alternative naming
+  "List of font variants to try in order of preference.")
+
+(defvar my-font-size 24 "Font size to use in points (for example, 10).")
 
 (defun font-exists-p (font)
-   "Check if the FONT exists." (and (display-graphic-p) (not (null (x-list-fonts font)))))
+  "Check if the FONT exists."
+  (and (display-graphic-p) (not (null (x-list-fonts font)))))
 
-(cond ((font-exists-p my-font)
-       (add-to-list 'default-frame-alist (font . ,my-font))
-       (add-to-list 'default-frame-alist (width . 170))
-       (add-to-list 'initial-frame-alist(font . ,my-font))
-       (add-to-list 'initial-frame-alist(width  . 170))))
+(defun find-available-font (font-list size)
+  "Find the first available font from FONT-LIST at SIZE."
+  (catch 'found
+    (dolist (font-name font-list)
+      (let ((font-spec (format "%s-%d" font-name size)))
+        (when (font-exists-p font-spec)
+          (throw 'found font-spec))))
+    nil))
+
+;; Try to find and set an available font
+(let ((available-font (find-available-font my-font-variants my-font-size)))
+  (when available-font
+    (add-to-list 'default-frame-alist `(font . ,available-font))
+    (add-to-list 'default-frame-alist '(width . 170))
+    (add-to-list 'initial-frame-alist `(font . ,available-font))
+    (add-to-list 'initial-frame-alist '(width . 170))
+    (message "Using font: %s" available-font)))
+
+;; Global text scaling for HiDPI displays
+;; Increase this value to make everything larger (2.4 = 240% scale)
+(setq my-emacs-scale 2.4)
+
+;; Apply scaling to all faces
+(defun my-set-face-scale ()
+  "Scale all faces by my-emacs-scale factor."
+  (set-face-attribute 'default nil :height (round (* 100 my-emacs-scale)))
+  ;; Scale other important faces proportionally
+  (dolist (face '(header-line
+                  tooltip))
+    (when (facep face)
+      (set-face-attribute face nil :height my-emacs-scale))))
+
+;; Apply scaling on startup
+(add-hook 'after-init-hook 'my-set-face-scale)
+(add-hook 'after-make-frame-functions
+          (lambda (frame)
+            (select-frame frame)
+            (my-set-face-scale)))
+
+;; Interactive functions to adjust scaling on the fly
+(defun my-increase-emacs-scale ()
+  "Increase Emacs rendering scale by 10%."
+  (interactive)
+  (setq my-emacs-scale (+ my-emacs-scale 0.1))
+  (my-set-face-scale)
+  (message "Emacs scale: %.1f" my-emacs-scale))
+
+(defun my-decrease-emacs-scale ()
+  "Decrease Emacs rendering scale by 10%."
+  (interactive)
+  (setq my-emacs-scale (max 0.5 (- my-emacs-scale 0.1)))
+  (my-set-face-scale)
+  (message "Emacs scale: %.1f" my-emacs-scale))
+
+(defun my-reset-emacs-scale ()
+  "Reset Emacs rendering scale to 1.0."
+  (interactive)
+  (setq my-emacs-scale 1.0)
+  (my-set-face-scale)
+  (message "Emacs scale reset to 1.0"))
+
+;; Bind scaling commands to convenient keys
+(global-set-key (kbd "C-+") 'my-increase-emacs-scale)
+(global-set-key (kbd "C-=") 'my-increase-emacs-scale)  ; For keyboards without numpad
+(global-set-key (kbd "C--") 'my-decrease-emacs-scale)
+(global-set-key (kbd "C-0") 'my-reset-emacs-scale)
 
 (use-package vterm
   :commands vterm
@@ -65,18 +132,22 @@
               (setq-local cursor-type 'box)
               ;; Ensure cursor is visible by setting appropriate face
               (set-face-background 'cursor nil t)))
-  
+
   ;; Better Evil integration for vterm
   (with-eval-after-load 'evil
     ;; Use emacs state in vterm by default
     (evil-set-initial-state 'vterm-mode 'emacs)
-    
+
     ;; Allow ESC to switch to Evil normal mode
     (define-key vterm-mode-map (kbd "<escape>") 'evil-normal-state)
-    
+
     ;; In normal mode, 'i' returns to emacs state (not insert)
     (evil-define-key 'normal vterm-mode-map (kbd "i") 'evil-emacs-state)
     (evil-define-key 'normal vterm-mode-map (kbd "a") 'evil-emacs-state)))
+
+;; Fix for shell-command with fish shell
+;; This ensures fish knows it's running in a non-interactive context
+(setenv "INSIDE_EMACS" (format "%s,comint" emacs-version))
 
 ;; Minimal modeline
 (use-package mood-line
@@ -118,9 +189,7 @@
   :straight (:type git :host github :repo "manzaltu/claude-code-ide.el")
   :bind ("C-c C-'" . claude-code-ide-menu) ; Set your favorite keybinding
   :config
-  (claude-code-ide-emacs-tools-setup)
-  (setq claude-code-ide-window-side 'right
-        claude-code-ide-window-height 30)) ; Optionally enable Emacs MCP tools
+  (claude-code-ide-emacs-tools-setup)) ; Optionally enable Emacs MCP tools
 
 ;; Spacemacs/Doom-style leader key configuration
 (use-package general
@@ -257,7 +326,7 @@
     "wo"   '(delete-other-windows :which-key "only window")
     "wu"   '(winner-undo :which-key "undo window change")
     "wr"   '(winner-redo :which-key "redo window change")
-    
+
     ;; Quick buffer switching
     "TAB"  '(evil-switch-to-windows-last-buffer :which-key "last buffer")
     "1"    '(winum-select-window-1 :which-key "window 1")
