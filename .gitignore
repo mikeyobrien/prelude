@@ -32,3 +32,6 @@ var/
 .lsp-session*
 gotools/
 eln-cache/
+straight/
+undo-fu-session/
+diary

@@ -13,7 +13,7 @@
 ;; Git time machine - Browse file history
 (use-package git-timemachine
   :ensure t
-  :bind ("C-c g t" . git-timemachine))
+  :bind ("C-c G" . git-timemachine))
 
 ;;; Editing Features Not in Prelude
 
