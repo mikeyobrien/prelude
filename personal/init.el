@@ -9,8 +9,11 @@
 (when (memq window-system '(mac ns x))
   (use-package exec-path-from-shell
     :ensure t
+    :init
+    (setq exec-path-from-shell-variables '("PATH" "MANPATH" "GOPATH"))
     :config
-    (exec-path-from-shell-initialize)))
+    (exec-path-from-shell-initialize)
+    (message "exec-path after initialization: %s" exec-path)))
 
 ;; Disable line numbers for some modes
 (dolist (mode '(org-mode-hook
@@ -28,6 +31,7 @@
 
 (setq package-archives '(("melpa" . "https://melpa.org/packages/")
                          ("org" . "https://orgmode.org/elpa/")
+                         ("nongnu" . "https://elpa.nongnu.org/nongnu/")
                          ("elpa" . "https://elpa.gnu.org/packages/")))
 
 (unless package-archive-contents
@@ -44,7 +48,8 @@
 
 ;; Font configuration with Retina variant and fallback
 (defvar my-font-variants
-  '("FiraCode Nerd Font Retina"  ; Retina variant (preferred)
+  '("FiraCode Nerd F
+ont Retina"  ; Retina variant (preferred)
     "FiraCode Nerd Font"       ; Regular variant (fallback)
     "Fira Code Nerd Font")     ; Alternative naming
   "List of font variants to try in order of preference.")
@@ -117,6 +122,9 @@
   :config
   (mood-line-mode))
 
+(use-package nix-mode
+  :mode "\\.nix\\'")
+
 (use-package orderless
   :ensure t
   :custom
@@ -124,14 +132,6 @@
   (completion-category-overrides '((file (styles basic partial-completion)))))
 
 ;; Fix evil-mode undo canary error
-(use-package undo-fu
-  :ensure t)
-
-(use-package undo-fu-session
-  :ensure t
-  :config
-  (setq undo-fu-session-incompatible-files '("/OMMIT_EDITMSG$" "/git-rebase-todo$"))
-  (undo-fu-session-global-mode))
 
 ;; Evil Collection for better evil integration with Emacs modes
 ;; Note: evil-want-keybinding is set to nil in personal/preload/evil-config.el
@@ -146,6 +146,11 @@
                                      calendar markdown-mode))  ; Comprehensive Evil integration
   (evil-collection-init))
 
+(use-package eat
+  :ensure t
+  :config
+  (add-hook 'eshell-load-hook #'eat-eshell-mode)
+  (add-hook 'eshell-load-hook #'eat-eshell-visual-command-mode))
 
 (defun my/q-commit()
   "Create a conventional commit for staged changes using q chat."
@@ -182,6 +187,33 @@
   (setq claude-code-ide-window-side 'bottom)
   (claude-code-ide-emacs-tools-setup)) ; Optionally enable Emacs MCP tools
 
+(use-package eat)
+
+(use-package deadgrep
+  :ensure t
+  :config
+  ;; Make deadgrep more Evil-friendly while keeping normal mode
+  (evil-set-initial-state 'deadgrep-mode 'normal)
+
+  ;; Define Evil keybindings for deadgrep-mode
+  (evil-define-key 'normal deadgrep-mode-map
+    (kbd "RET") 'deadgrep-visit-result
+    (kbd "o") 'deadgrep-visit-result-other-window
+    (kbd "gr") 'deadgrep-restart
+    (kbd "C") 'deadgrep-cycle-case
+    (kbd "D") 'deadgrep-directory
+    (kbd "F") 'deadgrep-file-type
+    (kbd "S") 'deadgrep-search-term
+    (kbd "T") 'deadgrep-type
+    (kbd "I") 'deadgrep-incremental
+    (kbd "^") 'deadgrep-parent-directory
+    (kbd "TAB") 'deadgrep-toggle-file-results
+    (kbd "M-n") 'deadgrep-forward-filename
+    (kbd "M-p") 'deadgrep-backward-filename
+    (kbd "]]") 'deadgrep-forward-match
+    (kbd "[[") 'deadgrep-backward-match
+    (kbd "q") 'quit-window))
+
 ;; Spacemacs/Doom-style leader key configuration
 (use-package general
   :ensure t
@@ -204,10 +236,10 @@
   (my-leader-def
     ""     '(nil :which-key "leader")
     "SPC"  '(execute-extended-command :which-key "M-x")
-    "."    '(find-file :which-key "find file")
+    "."    '(embark-act :which-key "embark act")
     ","    '(switch-to-buffer :which-key "switch buffer")
     "'"    '(vterm :which-key "terminal")
-    "/"    '(projectile-ripgrep :which-key "ripgrep")
+    "/"    '(deadgrep :which-key "ripgrep")
     "?"    '(which-key-show-top-level :which-key "top keybindings")
     "u"    '(universal-argument :which-key "universal arg")
     "x"    '(execute-extended-command :which-key "M-x")
@@ -216,6 +248,7 @@
     "a"    '(:ignore t :which-key "applications")
     "ad"   '(dired :which-key "dired")
     "at"   '(vterm :which-key "terminal")
+    "aT"   '(eat :which-key "eat")
 
     ;; Buffers
     "b"    '(:ignore t :which-key "buffer")
@@ -249,6 +282,7 @@
     "gl"   '(magit-log :which-key "magit log")
     "gp"   '(magit-push :which-key "magit push")
     "gP"   '(magit-pull :which-key "magit pull")
+    "g/"   '(consult-git-grep :which-key "consult git grep")
 
     ;; Help
     "h"    '(:ignore t :which-key "help")
@@ -278,7 +312,6 @@
     "pp"   '(projectile-switch-project :which-key "switch project")
     "pb"   '(projectile-switch-to-buffer :which-key "switch buffer")
     "pd"   '(projectile-find-dir :which-key "find dir")
-    "pg"   '(projectile-grep :which-key "grep")
     "pr"   '(projectile-replace :which-key "replace")
     "pk"   '(projectile-kill-buffers :which-key "kill buffers")
 
@@ -286,13 +319,6 @@
     "q"    '(:ignore t :which-key "quit")
     "qq"   '(save-buffers-kill-emacs :which-key "quit emacs")
     "qr"   '(restart-emacs :which-key "restart emacs")
-
-    ;; Search
-    "s"    '(:ignore t :which-key "search")
-    "ss"   '(swiper :which-key "swiper")
-    "sg"   '(projectile-grep :which-key "grep")
-    "sr"   '(projectile-ripgrep :which-key "ripgrep")
-    "sp"   '(projectile-ag :which-key "ag in project")
 
     ;; Toggle
     "t"    '(:ignore t :which-key "toggle")
@@ -324,6 +350,9 @@
     "2"    '(winum-select-window-2 :which-key "window 2")
     "3"    '(winum-select-window-3 :which-key "window 3")
     "4"    '(winum-select-window-4 :which-key "window 4")
+
+    ;; Amazon
+    "z"    '(:ignore t :which-key "work")
     ))
 
 ;; Configure which-key to show keybindings
@@ -346,7 +375,12 @@
 (with-eval-after-load 'evil
   ;; Quick file/buffer access with - and =
   (define-key evil-normal-state-map (kbd "-") 'dired-jump)
-  (define-key evil-normal-state-map (kbd "=") 'switch-to-buffer))
+  (define-key evil-normal-state-map (kbd "=") 'switch-to-buffer)
+
+  ;; Ensure C-u works for scrolling like in Vim
+  (define-key evil-normal-state-map (kbd "C-u") 'evil-scroll-up)
+  (define-key evil-visual-state-map (kbd "C-u") 'evil-scroll-up)
+  (define-key evil-motion-state-map (kbd "C-u") 'evil-scroll-up))
 
 ;; Terminal mouse/touch support for Termux and other terminals
 (when (not (display-graphic-p))
@@ -575,3 +609,52 @@
   ;; You may want to use `embark-prefix-help-command' or which-key instead.
   ;; (keymap-set consult-narrow-map (concat consult-narrow-key " ?") #'consult-narrow-help)
 )
+
+
+(use-package marginalia
+  :ensure t
+  :config
+  (marginalia-mode))
+
+(use-package embark-consult
+  :ensure t)
+
+(use-package embark
+  :ensure t
+  :bind
+   (("C-c C-." . embark-act)        ;; good alternative: M-.
+    ("C-c C-;" . embark-dwim)
+   ("C-h B" . embark-bindings)) ;; alternative for `describe-bindings'
+
+  :init
+
+  ;; Optionally replace the key help with a completing-read interface
+  (setq prefix-help-command #'embark-prefix-help-command)
+
+  ;; Show the Embark target at point via Eldoc. You may adjust the
+  ;; Eldoc strategy, if you want to see the documentation from
+  ;; multiple providers. Beware that using this can be a little
+  ;; jarring since the message shown in the minibuffer can be more
+  ;; than one line, causing the modeline to move up and down:
+
+  ;; (add-hook 'eldoc-documentation-functions #'embark-eldoc-first-target)
+  ;; (setq eldoc-documentation-strategy #'eldoc-documentation-compose-eagerly)
+
+  ;; Add Embark to the mouse context menu. Also enable `context-menu-mode'.
+  ;; (context-menu-mode 1)
+  ;; (add-hook 'context-menu-functions #'embark-context-menu 100)
+
+  :config
+
+  ;; Hide the mode line of the Embark live/completions buffers
+  (add-to-list 'display-buffer-alist
+               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+                 nil
+                 (window-parameters (mode-line-format . none)))))
+
+;; Consult users will also want the embark-consult package.
+
+(use-package embark-consult
+  :ensure t ; only need to install it, embark loads it after consult if found
+  :hook
+  (embark-collect-mode . consult-preview-at-point-mode))

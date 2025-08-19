@@ -47,7 +47,7 @@
 ;;(require 'prelude-helm) ;; Interface for narrowing and search
 ;;(require 'prelude-helm-everywhere) ;; Enable Helm everywhere
 (require 'prelude-company)
-;; (require 'prelude-key-chord) ;; Binds useful features to key combinations
+;;(require 'prelude-key-chord) ;; Binds useful features to key combinations
 
 ;;; Vim emulation
 ;;

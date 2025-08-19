@@ -5,6 +5,7 @@
 
 (setq evil-want-keybinding nil)
 (setq evil-want-integration t) ; This is optional but recommended
+(setq evil-want-C-u-scroll t)
 
 (provide 'evil-config)
 ;;; evil-config.el ends here
