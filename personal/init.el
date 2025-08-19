@@ -5,6 +5,13 @@
 (scroll-bar-mode -1)
 (set-fringe-mode 10)
 
+;; Fix PATH on macOS for GUI Emacs to find external tools like rg
+(when (memq window-system '(mac ns x))
+  (use-package exec-path-from-shell
+    :ensure t
+    :config
+    (exec-path-from-shell-initialize)))
+
 ;; Disable line numbers for some modes
 (dolist (mode '(org-mode-hook
                 vterm-mode-hook))
@@ -12,6 +19,9 @@
 
 ;; Make ESC quit prompts
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
+
+;; Adjust line length limit for whitespace-mode
+;; Change 80 to your preferred line length (e.g., 100, 120, or nil to disable)
 
 ;; Initialize package sources
 (require 'package)
@@ -30,15 +40,26 @@
 (require 'use-package)
 (setq use-package-always-ensure t)
 
+(setq whitespace-line-column 140)
 
 ;; Font configuration with Retina variant and fallback
 (defvar my-font-variants
-  '("FiraCode Nerd Font Ret"  ; Retina variant (preferred)
+  '("FiraCode Nerd Font Retina"  ; Retina variant (preferred)
     "FiraCode Nerd Font"       ; Regular variant (fallback)
     "Fira Code Nerd Font")     ; Alternative naming
   "List of font variants to try in order of preference.")
 
-(defvar my-font-size 24 "Font size to use in points (for example, 10).")
+(defvar my-font-size 16 "Font size to use in points (for example, 10).")
+
+;; Install doom-themes
+(use-package doom-themes
+  :ensure t
+  :config
+  (setq doom-themes-enable-bold t
+        doom-themes-enable-italic t)
+  (doom-themes-visual-bell-config)
+  (doom-themes-org-config))
+
 
 (defun font-exists-p (font)
   "Check if the FONT exists."
@@ -62,63 +83,12 @@
     (add-to-list 'initial-frame-alist '(width . 170))
     (message "Using font: %s" available-font)))
 
-;; Global text scaling for HiDPI displays
-;; Increase this value to make everything larger (2.4 = 240% scale)
-(setq my-emacs-scale 2.4)
-
-;; Apply scaling to all faces
-(defun my-set-face-scale ()
-  "Scale all faces by my-emacs-scale factor."
-  (set-face-attribute 'default nil :height (round (* 100 my-emacs-scale)))
-  ;; Scale other important faces proportionally
-  (dolist (face '(header-line
-                  tooltip))
-    (when (facep face)
-      (set-face-attribute face nil :height my-emacs-scale))))
-
-;; Apply scaling on startup
-(add-hook 'after-init-hook 'my-set-face-scale)
-(add-hook 'after-make-frame-functions
-          (lambda (frame)
-            (select-frame frame)
-            (my-set-face-scale)))
-
-;; Interactive functions to adjust scaling on the fly
-(defun my-increase-emacs-scale ()
-  "Increase Emacs rendering scale by 10%."
-  (interactive)
-  (setq my-emacs-scale (+ my-emacs-scale 0.1))
-  (my-set-face-scale)
-  (message "Emacs scale: %.1f" my-emacs-scale))
-
-(defun my-decrease-emacs-scale ()
-  "Decrease Emacs rendering scale by 10%."
-  (interactive)
-  (setq my-emacs-scale (max 0.5 (- my-emacs-scale 0.1)))
-  (my-set-face-scale)
-  (message "Emacs scale: %.1f" my-emacs-scale))
-
-(defun my-reset-emacs-scale ()
-  "Reset Emacs rendering scale to 1.0."
-  (interactive)
-  (setq my-emacs-scale 1.0)
-  (my-set-face-scale)
-  (message "Emacs scale reset to 1.0"))
-
-;; Bind scaling commands to convenient keys
-(global-set-key (kbd "C-+") 'my-increase-emacs-scale)
-(global-set-key (kbd "C-=") 'my-increase-emacs-scale)  ; For keyboards without numpad
-(global-set-key (kbd "C--") 'my-decrease-emacs-scale)
-(global-set-key (kbd "C-0") 'my-reset-emacs-scale)
-
 (use-package vterm
   :commands vterm
   :bind ((:map vterm-mode-map
                ("C-y" . vterm-yank)
                ("M-y" . vterm-yank-pop)
                ("C-q" . vterm-send-next-key)
-               ("C-z" . nil)
-               ("M-:" . nil)
                ("C-c C-e" . vterm-send-escape)))  ; Add explicit escape binding
   :custom
   (vterm-kill-buffer-on-exit t)
@@ -131,19 +101,11 @@
               ;; Let vterm handle its own cursor, but ensure it's not hidden
               (setq-local cursor-type 'box)
               ;; Ensure cursor is visible by setting appropriate face
-              (set-face-background 'cursor nil t)))
-
-  ;; Better Evil integration for vterm
-  (with-eval-after-load 'evil
-    ;; Use emacs state in vterm by default
-    (evil-set-initial-state 'vterm-mode 'emacs)
-
-    ;; Allow ESC to switch to Evil normal mode
-    (define-key vterm-mode-map (kbd "<escape>") 'evil-normal-state)
-
-    ;; In normal mode, 'i' returns to emacs state (not insert)
-    (evil-define-key 'normal vterm-mode-map (kbd "i") 'evil-emacs-state)
-    (evil-define-key 'normal vterm-mode-map (kbd "a") 'evil-emacs-state)))
+              (set-face-background 'cursor nil t)
+              ;; Set EDITOR and GIT_EDITOR to use emacsclient in vterm
+              (vterm-send-string "export EDITOR='emacsclient -n'\n")
+              (vterm-send-string "export GIT_EDITOR='emacsclient -n'\n")
+              (vterm-clear))))
 
 ;; Fix for shell-command with fish shell
 ;; This ensures fish knows it's running in a non-interactive context
@@ -155,6 +117,12 @@
   :config
   (mood-line-mode))
 
+(use-package orderless
+  :ensure t
+  :custom
+  (completion-styles '(orderless basic))
+  (completion-category-overrides '((file (styles basic partial-completion)))))
+
 ;; Fix evil-mode undo canary error
 (use-package undo-fu
   :ensure t)
@@ -165,20 +133,42 @@
   (setq undo-fu-session-incompatible-files '("/OMMIT_EDITMSG$" "/git-rebase-todo$"))
   (undo-fu-session-global-mode))
 
-;; Configure evil to use undo-fu
-(with-eval-after-load 'evil
-  (setq evil-undo-system 'undo-fu)
-  ;; Clear any corrupted undo history
-  (setq-default buffer-undo-list nil))
-
 ;; Evil Collection for better evil integration with Emacs modes
 ;; Note: evil-want-keybinding is set to nil in personal/preload/evil-config.el
 (use-package evil-collection
   :ensure t
   :after evil
   :config
-  (setq evil-collection-mode-list '(vterm help dired magit))  ; Start with a few modes
+  (setq evil-collection-mode-list '(help org dired magit vterm vertico company
+                                     which-key compile ibuffer grep
+                                     ediff flycheck eglot xref
+                                     occur package-menu term eshell imenu-list
+                                     calendar markdown-mode))  ; Comprehensive Evil integration
   (evil-collection-init))
+
+
+(defun my/q-commit()
+  "Create a conventional commit for staged changes using q chat."
+  (interactive)
+  (async-shell-command "q chat -a --no-interactive \"Create a conventional commit for the staged commits\""))
+
+
+;; Configure Magit to use Emacs for commit messages
+(use-package magit
+  :ensure t
+  :config
+  ;; Force Magit to use Emacs for editing commit messages
+  (setq with-editor-emacsclient-executable "emacsclient")
+  ;; Ensure we use the current Emacs instance
+  (setq magit-commit-editor-mode t)
+  ;; Don't use external editor
+  (setenv "GIT_EDITOR" "emacsclient")
+  (setenv "EDITOR" "emacsclient")
+
+  ;; Add custom q-commit command to Magit
+  (with-eval-after-load 'magit
+    (transient-append-suffix 'magit-commit "c"
+      '("q" "Q commit (AI)" my/q-commit))))
 
 ;; Auto-revert files when they change on disk
 (global-auto-revert-mode 1)
@@ -189,6 +179,7 @@
   :straight (:type git :host github :repo "manzaltu/claude-code-ide.el")
   :bind ("C-c C-'" . claude-code-ide-menu) ; Set your favorite keybinding
   :config
+  (setq claude-code-ide-window-side 'bottom)
   (claude-code-ide-emacs-tools-setup)) ; Optionally enable Emacs MCP tools
 
 ;; Spacemacs/Doom-style leader key configuration
@@ -234,7 +225,7 @@
     "bn"   '(next-buffer :which-key "next buffer")
     "bp"   '(previous-buffer :which-key "prev buffer")
     "br"   '(revert-buffer :which-key "revert buffer")
-    "bs"   '(save-buffer :which-key "save buffer")
+    "bs"   '(scratch-buffer :which-key "scratch buffer")
     "bS"   '(save-some-buffers :which-key "save all buffers")
     "bm"   '(bookmark-set :which-key "set bookmark")
     "bM"   '(bookmark-jump :which-key "jump bookmark")
@@ -407,3 +398,180 @@
 (with-eval-after-load 'evil
   ;; Quick buffer toggle with backquote
   (define-key evil-normal-state-map (kbd "`") 'my/switch-to-previous-buffer))
+
+;; Configure scratch buffer to use org-mode
+(setq initial-major-mode 'org-mode)
+(setq initial-scratch-message "# Scratch Buffer\n\n")
+
+;; Command to convert org-mode buffer to markdown and copy to clipboard
+(defun org-to-markdown-clipboard ()
+  "Convert current org-mode buffer to markdown and copy to clipboard."
+  (interactive)
+  (let ((markdown-content
+         (org-export-string-as (buffer-string) 'md t)))
+    (kill-new markdown-content)
+    (message "Org buffer exported to markdown and copied to clipboard!")))
+
+;; Add keybinding for org to markdown conversion
+(with-eval-after-load 'general
+  (my-leader-def
+    "om" '(org-to-markdown-clipboard :which-key "org to markdown clipboard")))
+
+;; amzn
+(use-package amz-workspace
+  :after amz-common
+  :straight (:host nil :repo "ssh://git.amazon.com/pkg/EmacsAmazonLibs"
+                   :files ("emacs-amazon-libs/amz-workspace.el"
+                           "emacs-amazon-libs/amz-coral.el"
+                           "emacs-amazon-libs/amz-bmds.el"
+                           "emacs-amazon-libs/amz-brazil-cache.el"
+                           "emacs-amazon-libs/amz-brazil-config.el"
+                           "emacs-amazon-libs/amz-brazil-config-parser.el"
+                           "emacs-amazon-libs/amz-shell.el"
+                           "emacs-amazon-libs/brazil-path-cache-artifacts"))
+  :custom (amz-workspace-default-root-directory "~/workspace"))
+
+
+;; Java
+(use-package eglot-java
+  :ensure t
+  :config
+  ;; If using Lombok
+  (add-to-list 'eglot-java-eclipse-jdt-args
+               (format "-javaagent:%s" (expand-file-name "/Users/mobrienv/workplace/lombok.jar"))
+               t))
+
+;; git-backup
+(use-package git-backup)
+
+(defvar my/backup-dir (expand-file-name "~/.git-backup"))
+
+(defun my/git-backup-versioning ()
+  "Save a version of the current file."
+  (unless (featurep 'git-backup)
+    (require 'git-backup))
+  (git-backup-version-file (executable-find "git") my/backup-dir '() (buffer-file-name)))
+
+(defun my/git-backup-run-action (command commit-hash)
+  "Execute COMMAND with COMMIT-HASH using another defaults arguments."
+  (apply command `(,(executable-find "git") ,my/backup-dir ,commit-hash ,(buffer-file-name))))
+
+(defun my/git-backup ()
+  "Navigate in versions of the current file."
+  (interactive)
+  (unless (featurep 'git-backup)
+    (require 'git-backup))
+  ;; for some reason an extra space after `%h|' is required to avoid an error when
+  ;; the shell command is executed
+  (let* ((candidates (git-backup-list-file-change-time (executable-find "git") my/backup-dir "%cI|%h| %ar" (buffer-file-name)))
+         (selection (completing-read "Pick revision: " candidates))
+         (commit-hash (nth 1 (string-split selection "|")))
+         (action (completing-read "Choose action: " '("diff" "new buffer" "replace current buffer"))))
+    (cond ((string-equal action "diff") (my/git-backup-run-action 'git-backup-create-ediff commit-hash))
+          ((string-equal action "new buffer") (my/git-backup-run-action 'git-backup-open-in-new-buffer commit-hash))
+          ((string-equal action "replace current buffer") (my/git-backup-run-action 'git-backup-replace-current-buffer commit-hash))
+          (t (message "Not valid option")))))
+
+;; Consult
+;; Example configuration for Consult
+;; Example configuration for Consult
+(use-package consult
+  ;; Replace bindings. Lazily loaded by `use-package'.
+  :bind (;; C-c bindings in `mode-specific-map'
+         ("C-c M-x" . consult-mode-command)
+         ("C-c h" . consult-history)
+         ("C-c k" . consult-kmacro)
+         ("C-c m" . consult-man)
+         ("C-c i" . consult-info)
+         ([remap Info-search] . consult-info)
+         ;; C-x bindings in `ctl-x-map'
+         ("C-x M-:" . consult-complex-command)     ;; orig. repeat-complex-command
+         ("C-x b" . consult-buffer)                ;; orig. switch-to-buffer
+         ("C-x 4 b" . consult-buffer-other-window) ;; orig. switch-to-buffer-other-window
+         ("C-x 5 b" . consult-buffer-other-frame)  ;; orig. switch-to-buffer-other-frame
+         ("C-x t b" . consult-buffer-other-tab)    ;; orig. switch-to-buffer-other-tab
+         ("C-x r b" . consult-bookmark)            ;; orig. bookmark-jump
+         ;; Custom M-# bindings for fast register access
+         ("M-#" . consult-register-load)
+         ("M-'" . consult-register-store)          ;; orig. abbrev-prefix-mark (unrelated)
+         ("C-M-#" . consult-register)
+         ;; Other custom bindings
+         ("M-y" . consult-yank-pop)                ;; orig. yank-pop
+         ;; M-g bindings in `goto-map'
+         ("M-g e" . consult-compile-error)
+         ("M-g f" . consult-flymake)               ;; Alternative: consult-flycheck
+         ("M-g g" . consult-goto-line)             ;; orig. goto-line
+         ("M-g M-g" . consult-goto-line)           ;; orig. goto-line
+         ("M-g o" . consult-outline)               ;; Alternative: consult-org-heading
+         ("M-g m" . consult-mark)
+         ("M-g k" . consult-global-mark)
+         ("M-g i" . consult-imenu)
+         ("M-g I" . consult-imenu-multi)
+         ;; M-s bindings in `search-map'
+         ("M-s d" . consult-find)                  ;; Alternative: consult-fd
+         ("M-s c" . consult-locate)
+         ("M-s g" . consult-grep)
+         ("M-s G" . consult-git-grep)
+         ("M-s r" . consult-ripgrep)
+         ("M-s l" . consult-line)
+         ("M-s L" . consult-line-multi)
+         ("M-s k" . consult-keep-lines)
+         ("M-s u" . consult-focus-lines)
+         ;; Isearch integration
+         ("M-s e" . consult-isearch-history)
+         :map isearch-mode-map
+         ("M-e" . consult-isearch-history)         ;; orig. isearch-edit-string
+         ("M-s e" . consult-isearch-history)       ;; orig. isearch-edit-string
+         ("M-s l" . consult-line)                  ;; needed by consult-line to detect isearch
+         ("M-s L" . consult-line-multi)            ;; needed by consult-line to detect isearch
+         ;; Minibuffer history
+         :map minibuffer-local-map
+         ("M-s" . consult-history)                 ;; orig. next-matching-history-element
+         ("M-r" . consult-history))                ;; orig. previous-matching-history-element
+
+  ;; Enable automatic preview at point in the *Completions* buffer. This is
+  ;; relevant when you use the default completion UI.
+  :hook (completion-list-mode . consult-preview-at-point-mode)
+
+  ;; The :init configuration is always executed (Not lazy)
+  :init
+
+  ;; Tweak the register preview for `consult-register-load',
+  ;; `consult-register-store' and the built-in commands.  This improves the
+  ;; register formatting, adds thin separator lines, register sorting and hides
+  ;; the window mode line.
+  (advice-add #'register-preview :override #'consult-register-window)
+  (setq register-preview-delay 0.5)
+
+  ;; Use Consult to select xref locations with preview
+  (setq xref-show-xrefs-function #'consult-xref
+        xref-show-definitions-function #'consult-xref)
+
+  ;; Configure other variables and modes in the :config section,
+  ;; after lazily loading the package.
+  :config
+
+  ;; Optionally configure preview. The default value
+  ;; is 'any, such that any key triggers the preview.
+  ;; (setq consult-preview-key 'any)
+  ;; (setq consult-preview-key "M-.")
+  ;; (setq consult-preview-key '("S-<down>" "S-<up>"))
+  ;; For some commands and buffer sources it is useful to configure the
+  ;; :preview-key on a per-command basis using the `consult-customize' macro.
+  (consult-customize
+   consult-theme :preview-key '(:debounce 0.2 any)
+   consult-ripgrep consult-git-grep consult-grep consult-man
+   consult-bookmark consult-recent-file consult-xref
+   consult--source-bookmark consult--source-file-register
+   consult--source-recent-file consult--source-project-recent-file
+   ;; :preview-key "M-."
+   :preview-key '(:debounce 0.4 any))
+
+  ;; Optionally configure the narrowing key.
+  ;; Both < and C-+ work reasonably well.
+  (setq consult-narrow-key "<") ;; "C-+"
+
+  ;; Optionally make narrowing help available in the minibuffer.
+  ;; You may want to use `embark-prefix-help-command' or which-key instead.
+  ;; (keymap-set consult-narrow-map (concat consult-narrow-key " ?") #'consult-narrow-help)
+)
